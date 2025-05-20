@@ -91,19 +91,6 @@ class QueryManager:
                                                                                                         ascending=False)
 
 
-
-# ESEMPIO DI UTILIZZO
-if __name__ == "__main__":
-
-    builder = SparkBuilder()
-
-    df = builder.dataset
-    builder.preprocess()
-
-    manager = QueryManager(df)
-
-
-
 '''
     print("🧾 Media punteggio per hotel:")
     manager.media_punteggio_per_hotel().show(5)
