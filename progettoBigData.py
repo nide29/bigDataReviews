@@ -15,7 +15,7 @@ class SparkBuilder:
         self.spark.sparkContext.setLogLevel("ERROR")  # per evitare di stampare sempre i Warning
 
         # Lettura del DataSet
-        self.dataset = self.spark.read.csv(dataset_path, header=True, inferSchema=True)
+        self.dataset = self.spark.read.csv(dataset_path, header=True, inferSchema=True, encoding="UTF-8")
 
         # Stampare lo schema del dataset prima del pre-process
         print("Dataset Schema before pre-process")
@@ -75,10 +75,13 @@ class SparkBuilder:
         ]
         df = df.dropna(subset=critical_columns)
 
-        # 2. Trim delle colonne testuali per eliminare spazi vuoti
+        # 2. Rimozione duplicati
+        df = df.dropDuplicates()
+
+        # 2. Trim delle colonne testuali per eliminare spazi vuoti + tutto in lowercase
         text_columns = ['Positive_Review', 'Negative_Review', 'Reviewer_Nationality']
         for col_name in text_columns:
-            df = df.withColumn(col_name, trim(col(col_name)))
+            df = df.withColumn(col_name, lower(trim(col(col_name))))
 
         # 3. Imputazione testuale su valori mancanti o vuoti
         df = df.withColumn(
@@ -98,7 +101,7 @@ class SparkBuilder:
         )
 
         # 4. Drop righe con coordinate mancanti (dopo eventuale geocoding)
-        #df = df.dropna(subset=["lat", "lng"])
+        df = df.dropna(subset=["lat", "lng"])
 
         # 5. Salva nel dataset della classe
         self.dataset = df
@@ -111,7 +114,7 @@ class SparkBuilder:
         for field in df.schema.fields:
             column = field.name
             if str(field.dataType) == "StringType()":
-                non_null_count = df.filter(col(column).isNotNull() & (trim(col(column)) != '')).count()
+                non_null_count = df.filter(col(column).isNotNull() & (trim(col(column)) != '') & (trim(col(column)) != ' ')).count()
             else:
                 non_null_count = df.filter(col(column).isNotNull()).count()
             missing_count = total_count - non_null_count
@@ -138,7 +141,16 @@ class SparkBuilder:
         for row in righe_nulli_ou_vuoti.collect():
             print(" | ".join([str(x) if x is not None else "" for x in row]))
 
-
+    def stampa_schema_e_conteggi(self):
+        df = self.dataset
+        print("Schema del dataset dopo il preprocessing:\n")
+        df.printSchema()
+        print("\nConteggio valori non nulli per ogni colonna:")
+        total_count = df.count()
+        for field in df.schema.fields:
+            column = field.name
+            non_null_count = df.filter(col(column).isNotNull()).count()
+            print(f"{column}: {non_null_count} valori non nulli su {total_count} righe totali")
 
 
 class QueryManager:
@@ -156,19 +168,3 @@ class QueryManager:
 
     def numero_recensioni_per_nazione(self):
         return self.df.groupBy("Reviewer_Nationality").count().orderBy("count", ascending=False)
-
-    def top_hotels_per_recensioni_positive(self, min_length=100):
-        return self.df.filter(col("pos_review_len") > min_length).groupBy("Hotel_Name").count().orderBy("count",
-                                                                                                        ascending=False)
-
-
-'''
-    print("🧾 Media punteggio per hotel:")
-    manager.media_punteggio_per_hotel().show(5)
-
-    print("🌍 Numero recensioni per nazione:")
-    manager.numero_recensioni_per_nazione().show(5)
-
-    print("🏨 Hotel con molte recensioni positive:")
-    manager.top_hotels_per_recensioni_positive().show(5)
-'''

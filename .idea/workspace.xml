@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="4c153d64-9e5c-4ca2-a7f7-65a70e5fd11f" name="Changes" comment="small update">
+    <list default="true" id="4c153d64-9e5c-4ca2-a7f7-65a70e5fd11f" name="Changes" comment="Updated Preprocessing + utility function">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/progettoBigData.py" beforeDir="false" afterPath="$PROJECT_DIR$/progettoBigData.py" afterDir="false" />
@@ -30,12 +30,12 @@
     &quot;assignee&quot;: &quot;nide29&quot;
   }
 }</component>
-  <component name="GithubPullRequestsUISettings"><![CDATA[{
-  "selectedUrlAndAccountId": {
-    "url": "https://github.com/nide29/bigDataReviews.git",
-    "accountId": "f4964898-8e45-487a-90cb-1e5f7a38d28f"
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/nide29/bigDataReviews.git&quot;,
+    &quot;accountId&quot;: &quot;f4964898-8e45-487a-90cb-1e5f7a38d28f&quot;
   }
-}]]></component>
+}</component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 6
 }</component>
@@ -47,15 +47,15 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Python.main.executor&quot;: &quot;Run&quot;,
-    &quot;Python.progettoBigData.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Python.main.executor": "Run",
+    "Python.progettoBigData.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "git-widget-placeholder": "main",
+    "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$" />
@@ -85,7 +85,15 @@
       <option name="project" value="LOCAL" />
       <updated>1747146671994</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="Updated Preprocessing + utility function">
+      <option name="closed" value="true" />
+      <created>1747754884088</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1747754884088</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -101,6 +109,7 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="dataset preprocess" />
-    <option name="LAST_COMMIT_MESSAGE" value="dataset preprocess" />
+    <MESSAGE value="Updated Preprocessing + utility function" />
+    <option name="LAST_COMMIT_MESSAGE" value="Updated Preprocessing + utility function" />
   </component>
 </project>
