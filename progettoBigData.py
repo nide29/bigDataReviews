@@ -1,10 +1,19 @@
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, lower, trim, length
+from pyspark.sql import SparkSession, Window
+from pyspark.sql.functions import col, lower, trim, length, row_number
 from pyspark.sql.types import IntegerType, FloatType, BooleanType, StringType
-from pyspark.sql.functions import regexp_replace, split, expr, col, to_date, regexp_extract, udf, count, array_contains, avg, first, explode, abs, desc, asc, stddev, coalesce, to_date, when, date_format, lower, lit, sum, max, min
+from pyspark.sql.functions import regexp_replace, split, expr, col, to_date, regexp_extract, udf, count, array_contains, datediff, avg, first, explode, abs, desc, asc, stddev, coalesce, to_date, when, date_format, lower, lit, sum, max, min, countDistinct, broadcast, round
+from utils import estraiCitta, udf_haversine
+from utils import estrai_aggettivi_avverbi
+from pyspark.sql.functions import udf, explode, lower, col
+from pyspark.sql.types import ArrayType, StringType
 
+import os
+os.environ['NLTK_DATA'] = '/Users/alessandro/nltk_data'
 
 dataset_path = "/Users/alessandro/Desktop"
+
+
+udf_estrai_aggettivi_avverbi = udf(estrai_aggettivi_avverbi, ArrayType(StringType()))
 class SparkBuilder:
     def __init__(self):
         self.spark = SparkSession.builder \
@@ -18,16 +27,16 @@ class SparkBuilder:
         self.dataset = self.spark.read.csv(dataset_path, header=True, inferSchema=True, encoding="UTF-8")
 
         # Stampare lo schema del dataset prima del pre-process
-        print("Dataset Schema before pre-process")
-        self.dataset.printSchema()
+        #print("Dataset Schema before pre-process")
+        #self.dataset.printSchema()
 
         # Pre-Process del Dataset
         self.casting()
         self.preprocess()
 
         # Stampare schema dopo pre-process
-        print("Dataset Schema after pre-process")
-        self.dataset.printSchema()
+        #print("Dataset Schema after pre-process")
+        #self.dataset.printSchema()
 
 
 
@@ -54,6 +63,14 @@ class SparkBuilder:
                            regexp_extract(col("days_since_review"), r"(\d+)", 1).cast(IntegerType()))
         df = df.withColumn("lat", df["lat"].cast(FloatType()))
         df = df.withColumn("lng", df["lng"].cast(FloatType()))
+
+        # Aggiungiamo una colonna per la nazionalità degli Hotel (utile per le Query)
+        df = df.withColumn("Hotel_Nationality",
+                           regexp_extract(col("Hotel_Address"), r'(United\s+Kingdom|\b[A-Z][a-z]+)$', 1))
+        udf_estraiCitta = udf(estraiCitta, StringType())
+        # Aggiungiamo anche una colonna per la città degli Hotel
+        df = df.withColumn("Hotel_City", udf_estraiCitta(col("Hotel_Address"), col("Hotel_Nationality")))
+
 
         # Conversione della colonna Tags in un array di stringhe
         df = df.withColumn("Tags", regexp_replace(col("Tags"), "[\[\]']", ""))
@@ -153,18 +170,303 @@ class SparkBuilder:
             print(f"{column}: {non_null_count} valori non nulli su {total_count} righe totali")
 
 
+
+############################################
+###     QUERY MANAGER PER ANALISI DATI   ###
+############################################
 class QueryManager:
+
     def __init__(self, df):
         self.df = df
 
     def schema_dataset(self):
         return self.df.printSchema
 
-    def info_dataset(self):
-        return self.df.show(10)
+    def info_dataset(self, nRighe):
+        return self.df.show(nRighe, truncate=False)
 
-    def media_punteggio_per_hotel(self):
-        return self.df.groupBy("Hotel_Name").avg("Reviewer_Score").orderBy("avg(Reviewer_Score)", ascending=False)
 
-    def numero_recensioni_per_nazione(self):
-        return self.df.groupBy("Reviewer_Nationality").count().orderBy("count", ascending=False)
+
+    '''======================== QUERY 1 ========================'''
+    # Il compito di questa query è quello di restituire le informazioni medie delle città (come numero di Hotel,
+    # punteggio medio delle recensioni, ecc...)
+    def cityHotelInformation(self):
+        df = self.df
+
+        all_info = df.groupby("Hotel_City").agg(
+            count("*").alias("Total_Reviews"),
+            countDistinct("Hotel_Name").alias("Number_Hotel"),
+            avg("Average_Score").alias("Average_Score"),
+            sum(when((col("Negative_Review").like("No Negative")) | (col("Negative_Review").like("Nothing")),
+                     0).otherwise(1)).alias("TotalN"),
+            sum(when((col("Positive_Review").like("No Positive")) | (col("Positive_Review").like("Nothing")),
+                     0).otherwise(1)).alias("TotalP"),
+        )
+        return all_info
+
+
+
+
+    '''======================== QUERY 2 ========================'''
+    # Il compito di questa Query è quello di restituire i top n Hotel per ogni città
+    def top_hotel_per_citta_per_nazione(self, n=5):
+        df = self.df
+
+        # Media dei voti per ogni hotel, città e nazione
+        hotel_avg = df.groupBy("Hotel_Nationality", "Hotel_City", "Hotel_Name") \
+            .agg(avg("Reviewer_Score").alias("avg_score"))
+
+        # Finestra per ordinare i migliori hotel per città e nazione
+        window = Window.partitionBy("Hotel_Nationality", "Hotel_City").orderBy(desc("avg_score"))
+
+        # Ranking e top 5 per città
+        ranked = hotel_avg.withColumn("rank", row_number().over(window)) \
+            .filter(col("rank") <= n)
+
+        # Media dei voti per città e nazione
+        city_avg = df.groupBy("Hotel_Nationality", "Hotel_City") \
+            .agg(avg("Reviewer_Score").alias("city_avg_score"))
+
+        # Unione risultati
+        result = ranked.join(city_avg, on=["Hotel_Nationality", "Hotel_City"]) \
+            .select("Hotel_Nationality", "Hotel_City", "city_avg_score", "Hotel_Name", "avg_score", "rank") \
+            .orderBy("Hotel_Nationality", "Hotel_City", "rank")
+
+        return result
+
+    #QUERY DI SUPPORTO PER LA STAMPA DEI RISULTATI
+    def stampa_query2(self):
+        result = self.top_hotel_per_citta_per_nazione()
+        nazioni = [row["Hotel_Nationality"] for row in result.select("Hotel_Nationality").distinct().collect()]
+        for nazione in nazioni:
+            print(f"\n=== {nazione} ===")
+            citta = [row["Hotel_City"] for row in
+                     result.filter(col("Hotel_Nationality") == nazione).select("Hotel_City").distinct().collect()]
+            for city in citta:
+                print(f"\n--- {city} ---")
+                result.filter((col("Hotel_Nationality") == nazione) & (col("Hotel_City") == city)).orderBy("rank").show(
+                    truncate=False)
+
+
+
+
+    '''=====QUERY3====='''
+    # Questa Query permette di effettuare un'analisi degli aggettivi e degli avverbi per capire quali parole sono
+    # indicatori di punteggi alti o bassi
+    def analisi_aggettivi_avverbi(self, min_freq=1000):
+        df = self.df.withColumn(
+            "review_text",
+            lower(col("Positive_Review")) + " " + lower(col("Negative_Review"))
+        )
+        df = df.withColumn("parole", udf_estrai_aggettivi_avverbi(col("review_text")))
+        df_words = df.select(col("Reviewer_Score"), explode(col("parole")).alias("word"))
+        result = df_words.groupBy("word") \
+            .agg(count("*").alias("freq"), avg("Reviewer_Score").alias("avg_score")) \
+            .filter(col("freq") >= min_freq) \
+            .orderBy(col("avg_score").desc())
+        return result
+
+
+    '''=========QUERY4========'''
+
+    def mostAndLeastTagUsed(self):
+        df = self.df
+
+        df_tags = df.select(explode("Tags").alias("word"))
+        frequenza_tag = df_tags.groupBy("word").count()
+        frequenza_tag = frequenza_tag.orderBy("count", ascending=False)
+        return frequenza_tag
+
+
+    '''=================QUERY5================'''
+
+    def tag_influence_analysis(self, min_count=1000):
+        df = self.df
+
+        # Esplodi la colonna Tags in righe individuali
+        exploded_tags = df.select(
+            col("Reviewer_Score"),
+            explode(col("Tags")).alias("tag")
+        )
+        # Calcola la media del punteggio e il conteggio per ciascun tag
+        tag_scores_desc = exploded_tags.groupBy("tag") \
+            .agg(
+            avg("Reviewer_Score").alias("avg_score"),
+            count("*").alias("tag_count")
+        ) \
+            .filter(col("tag_count") >= min_count).orderBy(desc("avg_score"))
+
+        return tag_scores_desc
+
+
+    '''==========QUERY6============='''
+    def recensioni_lunghezza(self):
+        from pyspark.sql.functions import length, lit, col, desc, asc, row_number
+        from pyspark.sql import Window
+
+        # Sostituisci 'Hotel_Address' con 'City' se la colonna si chiama diversamente
+        # Recensioni positive
+        df_pos = self.df.select(
+            col("Positive_Review").alias("review_text"),
+            col("Reviewer_Score"),
+            col("Hotel_Name"),
+            col("Hotel_City"),
+            lit("positiva").alias("type")
+        ).withColumn("length", length(col("review_text")))
+
+        window_pos_long = Window.orderBy(desc("length"))
+        pos_longest = df_pos.withColumn("rn", row_number().over(window_pos_long)).filter(col("rn") == 1).drop("rn")
+
+        window_pos_short = Window.orderBy(asc("length"))
+        pos_shortest = df_pos.withColumn("rn", row_number().over(window_pos_short)).filter(col("rn") == 1).drop("rn")
+
+        # Recensioni negative
+        df_neg = self.df.select(
+            col("Negative_Review").alias("review_text"),
+            col("Reviewer_Score"),
+            col("Hotel_Name"),
+            col("Hotel_City"),
+            lit("negativa").alias("type")
+        ).withColumn("length", length(col("review_text")))
+
+        window_neg_long = Window.orderBy(desc("length"))
+        neg_longest = df_neg.withColumn("rn", row_number().over(window_neg_long)).filter(col("rn") == 1).drop("rn")
+
+        window_neg_short = Window.orderBy(asc("length"))
+        neg_shortest = df_neg.withColumn("rn", row_number().over(window_neg_short)).filter(col("rn") == 1).drop("rn")
+
+        # Unisci tutti i risultati
+        return pos_longest.unionByName(pos_shortest).unionByName(neg_longest).unionByName(neg_shortest)
+
+
+    '''=================QUERY7==============='''
+    # SEASONAL SENTIMENT ANALYSIS
+    # TODO
+
+    '''=================QUERY8==============='''
+
+    def preferenze_citta_per_nazionalita_dict(self, top_n=10):
+        from pyspark.sql import Window
+        from pyspark.sql.functions import avg, desc, row_number, col
+
+        # Calcola la media dei punteggi per ogni nazionalità e città
+        df_grouped = self.df.groupBy("Reviewer_Nationality", "Hotel_City") \
+            .agg(avg("Reviewer_Score").alias("avg_score"))
+
+        # Finestra per ranking per ogni nazionalità
+        window = Window.partitionBy("Reviewer_Nationality").orderBy(desc("avg_score"))
+
+        # Aggiungi ranking e filtra i top N per ogni nazionalità
+        ranked = df_grouped.withColumn("rank", row_number().over(window)) \
+            .filter(col("rank") <= top_n)
+
+        # Colleziona i risultati in un dizionario Python
+        result = {}
+        for row in ranked.orderBy("Reviewer_Nationality", "rank").collect():
+            naz = row["Reviewer_Nationality"]
+            city = row["Hotel_City"]
+            if naz not in result:
+                result[naz] = []
+            result[naz].append(city)
+        return result
+
+    def stampa_query8(self):
+        preferenze = self.preferenze_citta_per_nazionalita_dict()
+        for naz, cities in preferenze.items():
+            print(f"\nNazionalità: {naz}\nPreference: {{")
+            for i, city in enumerate(cities, 1):
+                print(f"{i}. {city}")
+            print("}")
+
+    def classifica_citta_preferite_df(self, top_n=10):
+        from pyspark.sql import Window
+        from pyspark.sql.functions import avg, desc, row_number, col
+
+        # Calcola la media dei punteggi per ogni nazionalità e città
+        df_grouped = self.df.groupBy("Reviewer_Nationality", "Hotel_City") \
+            .agg(avg("Reviewer_Score").alias("avg_score"))
+
+        # Finestra per ranking per ogni nazionalità
+        window = Window.partitionBy("Reviewer_Nationality").orderBy(desc("avg_score"))
+
+        # Aggiungi ranking e filtra i top N per ogni nazionalità
+        ranked = df_grouped.withColumn("rank", row_number().over(window)) \
+            .filter(col("rank") <= top_n) \
+            .orderBy("Reviewer_Nationality", "rank")
+
+        return ranked
+
+
+
+
+    '''=================================================================================================================='''
+
+    '''=================== QUERY 4.1 ====================='''
+    def punteggio_medio_storico_hotel(self, hotel_name):
+        return self.df.filter(col("Hotel_Name") == hotel_name) \
+            .agg(round(avg("Reviewer_Score"), 1).alias("avg_score"))
+
+
+    '''=================== QUERY 4.2 ====================='''
+    def trend_mensile_hotel(self, hotel_name):
+        from pyspark.sql.functions import year, month
+
+        return self.df.filter(col("Hotel_Name") == hotel_name) \
+            .groupBy(year(col("Review_Date")).alias("anno"), month(col("Review_Date")).alias("mese")) \
+            .agg(round(avg("Reviewer_Score"), 1).alias("media_mensile")) \
+            .orderBy("anno", "mese")
+
+
+    '''=================== QUERY 4.3 ====================='''
+
+    def hotel_vicini(self, hotel_name, raggio_km=1.0):
+        from pyspark.sql.functions import col
+
+        hotel_unici_df = self.hotel_unici()
+
+        # Recupera le coordinate dell'hotel richiesto
+        hotel_coord = hotel_unici_df.filter(col("Hotel_Name") == hotel_name) \
+            .select("lat", "lng").limit(1).collect()
+        if not hotel_coord:
+            print("Hotel non trovato.")
+            return None
+        lat0, lng0 = hotel_coord[0]["lat"], hotel_coord[0]["lng"]
+
+        # Calcola la distanza Haversine solo sugli hotel unici
+        df_dist = hotel_unici_df.withColumn(
+            "distanza",
+            udf_haversine(col("lat"), col("lng"), lit(lat0), lit(lng0))
+        )
+
+        vicini = df_dist.filter(
+            (col("distanza") <= raggio_km) & (col("Hotel_Name") != hotel_name)
+        ).select("Hotel_Name", "Hotel_City", "distanza").orderBy("distanza")
+
+        return vicini
+
+
+
+    '''=================== QUERY 4.4 ====================='''
+
+    def hotel_vicini_a_punto(self, lat, lng, raggio_km=500.0):
+        """Restituisce gli hotel entro raggio_km dal punto (lat, lng)."""
+        # Usa il DataFrame degli hotel unici
+        hotel_unici_df = self.hotel_unici()
+        # Calcola la distanza Haversine dal punto dato
+        df_dist = hotel_unici_df.withColumn(
+            "distanza",
+            udf_haversine(col("lat"), col("lng"), lit(lat), lit(lng))
+        )
+        # Filtra gli hotel entro il raggio specificato
+        vicini = df_dist.filter(col("distanza") <= raggio_km) \
+            .select("Hotel_Name", "Hotel_City", "lat", "lng", "distanza") \
+            .orderBy("distanza")
+        return vicini
+
+
+
+
+
+    '''=================== QUERY DI SUPPORTO ====================='''
+    def hotel_unici(self):
+        return self.df.select("Hotel_Name", "Hotel_City", "lat", "lng").distinct()
