@@ -30,6 +30,7 @@ def estraiCitta(indirizzo: str, country: str) -> str:
     # nltk.download('averaged_perceptron_tagger')
     # nltk.download('wordnet')
 
+'''
 def estrai_aggettivi_avverbi(text):
     """
     Estrae aggettivi e avverbi da una stringa usando NLTK e WordNet.
@@ -39,12 +40,21 @@ def estrai_aggettivi_avverbi(text):
         return []
 
     tokens = word_tokenize(text)
-    tagged = pos_tag(tokens)
+    tagged = pos_tag(tokens)    # lang = 'eng'
     # JJ, JJR, JJS = aggettivi; RB, RBR, RBS = avverbi
     parole = [word for word, pos in tagged if pos.startswith('JJ') or pos.startswith('RB')]
     return parole
+'''
 
 
+def is_adjective_or_adverb(word):
+    """
+    Restituisce True se la parola è un aggettivo ('a') o un avverbio ('r') secondo WordNet.
+    """
+    if not isinstance(word, str) or not word:
+        return False
+    synsets = wordnet.synsets(word)
+    return any(s.pos() in ('a', 'r') for s in synsets)
 
 
 def haversine(lat1, lon1, lat2, lon2):

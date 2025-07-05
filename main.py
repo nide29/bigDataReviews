@@ -24,25 +24,7 @@ manager = QueryManager(df)
 #print("STATISTICHE GENERALI DEL DATASET:")
 #pprint.pprint(manager.statistiche_generali_dataset())
 
-'''
-print("📊 Analisi giorni della settimana:")
-manager.analisi_giorni_settimana().show()
 
-print("📊 Trend ANNUALE dei punteggi:")
-manager.trend_annuale_punteggi().show(100)
-
-print("📅 Picchi recensioni mensili:")
-manager.picchi_recensioni_mensili().show()
-
-print("🗺️ Densità hotel per coordinate:")
-manager.densita_hotel_per_coordinate().show()
-
-print("🏙️ Confronto città europee:")
-manager.confronto_citta_europee().show()
-
-print("👤 Profili recensori:")
-manager.profili_recensori().show()
-'''
 
 
 #print("🏙️ TEST QUERY 1:")
@@ -50,6 +32,15 @@ manager.profili_recensori().show()
 
 #print("🏙️ TEST QUERY 2:")
 #manager.top_hotel_per_citta_per_nazione().show()
+
+#print("🏙️ TEST QUERY 3:")
+#positive_df, negative_df = manager.words_score_analysis()
+
+#print("=== Aggettivi/Avverbi più associati a punteggi alti (recensioni positive) ===")
+#positive_df.show(truncate=False)
+
+#print("\n=== Aggettivi/Avverbi più associati a punteggi bassi (recensioni negative) ===")
+#negative_df.show(truncate=False)
 
 #print("🏙️ TEST QUERY 4:")
 #manager.mostAndLeastTagUsed().show()
@@ -75,5 +66,17 @@ manager.profili_recensori().show()
 #print("🏙️ TEST QUERY 4.3:")
 #manager.hotel_vicini('Hotel Arena').show(truncate=False)
 
-print("🏙️ TEST QUERY 4.4:")
-manager.hotel_vicini_a_punto(45.4477479, 9.1835306).show(truncate=False)
+#print("🏙️ TEST QUERY 4.4:")
+#manager.hotel_vicini_a_punto(45.4477479, 9.1835306).show(truncate=False)
+
+#print("🏙️ TEST QUERY 4.5:")
+#manager.reputazione_hotel('Hotel Arena').show(truncate=False)
+
+#print("🏙️ TEST QUERY 4.6:")
+#manager.recensioni_anomale('Hotel Arena').show(truncate=False)
+
+#print("🏙️ TEST QUERY 4.7:")
+#manager.statistiche_generali_hotel('Hotel Arena').show(truncate=False)
+
+print("🏙️ TEST QUERY 4.8:")
+print(manager.summary_recensioni_hotel('Hotel Arena'))

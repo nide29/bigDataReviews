@@ -2,10 +2,10 @@ from pyspark.sql import SparkSession, Window
 from pyspark.sql.functions import col, lower, trim, length, row_number
 from pyspark.sql.types import IntegerType, FloatType, BooleanType, StringType
 from pyspark.sql.functions import regexp_replace, split, expr, col, to_date, regexp_extract, udf, count, array_contains, datediff, avg, first, explode, abs, desc, asc, stddev, coalesce, to_date, when, date_format, lower, lit, sum, max, min, countDistinct, broadcast, round
-from utils import estraiCitta, udf_haversine
-from utils import estrai_aggettivi_avverbi
+from utils import estraiCitta, udf_haversine, is_adjective_or_adverb
 from pyspark.sql.functions import udf, explode, lower, col
 from pyspark.sql.types import ArrayType, StringType
+from Summary import SummaryLLM
 
 import os
 os.environ['NLTK_DATA'] = '/Users/alessandro/nltk_data'
@@ -13,7 +13,7 @@ os.environ['NLTK_DATA'] = '/Users/alessandro/nltk_data'
 dataset_path = "/Users/alessandro/Desktop"
 
 
-udf_estrai_aggettivi_avverbi = udf(estrai_aggettivi_avverbi, ArrayType(StringType()))
+is_adj_adv_udf = udf(is_adjective_or_adverb, ArrayType(StringType()))
 class SparkBuilder:
     def __init__(self):
         self.spark = SparkSession.builder \
@@ -187,7 +187,7 @@ class QueryManager:
 
 
 
-    '''======================== QUERY 1 ========================'''
+    '''======================== QUERY 3.1 ========================'''
     # Il compito di questa query è quello di restituire le informazioni medie delle città (come numero di Hotel,
     # punteggio medio delle recensioni, ecc...)
     def cityHotelInformation(self):
@@ -207,7 +207,7 @@ class QueryManager:
 
 
 
-    '''======================== QUERY 2 ========================'''
+    '''======================== QUERY 3.2 ========================'''
     # Il compito di questa Query è quello di restituire i top n Hotel per ogni città
     def top_hotel_per_citta_per_nazione(self, n=5):
         df = self.df
@@ -250,13 +250,14 @@ class QueryManager:
 
 
 
-    '''=====QUERY3====='''
+    '''=====QUERY 3.3====='''
+    '''
     # Questa Query permette di effettuare un'analisi degli aggettivi e degli avverbi per capire quali parole sono
     # indicatori di punteggi alti o bassi
-    def analisi_aggettivi_avverbi(self, min_freq=1000):
+    def analisi_aggettivi_avverbi(self, min_freq=10):
         df = self.df.withColumn(
             "review_text",
-            lower(col("Positive_Review")) + " " + lower(col("Negative_Review"))
+            col("Positive_Review") + " " + col("Negative_Review")   # non mettiamo in lowercase in quanto wordnet è addestrato con la capitalizzazione corretta, quindi con il lower la funzione ha problemi
         )
         df = df.withColumn("parole", udf_estrai_aggettivi_avverbi(col("review_text")))
         df_words = df.select(col("Reviewer_Score"), explode(col("parole")).alias("word"))
@@ -265,9 +266,44 @@ class QueryManager:
             .filter(col("freq") >= min_freq) \
             .orderBy(col("avg_score").desc())
         return result
+    '''
+
+    def words_score_analysis(self, min_frequency=1000):
+        # UDF per filtrare aggettivi e avverbi
+        is_adj_adv_udf = udf(is_adjective_or_adverb, BooleanType())
+
+        # Positive reviews
+        positive_words = self.df.select(
+            col("Reviewer_Score"),
+            explode(split(col("Positive_Review"), r"\s+")).alias("word")
+        ).filter(col("word") != "")
+        positive_words_filtered = positive_words.filter(is_adj_adv_udf(col("word")))
+        positive_word_scores = positive_words_filtered.groupBy("word") \
+            .agg(
+            avg("Reviewer_Score").alias("avg_score"),
+            count("word").alias("word_count")
+        ) \
+            .filter(col("word_count") >= min_frequency) \
+            .orderBy(desc("avg_score"))
+
+        # Negative reviews
+        negative_words = self.df.select(
+            col("Reviewer_Score"),
+            explode(split(col("Negative_Review"), r"\s+")).alias("word")
+        ).filter(col("word") != "")
+        negative_words_filtered = negative_words.filter(is_adj_adv_udf(col("word")))
+        negative_word_scores = negative_words_filtered.groupBy("word") \
+            .agg(
+            avg("Reviewer_Score").alias("avg_score"),
+            count("word").alias("word_count")
+        ) \
+            .filter(col("word_count") >= min_frequency) \
+            .orderBy("avg_score")
+
+        return positive_word_scores, negative_word_scores
 
 
-    '''=========QUERY4========'''
+    '''=========QUERY 3.4========'''
 
     def mostAndLeastTagUsed(self):
         df = self.df
@@ -278,7 +314,7 @@ class QueryManager:
         return frequenza_tag
 
 
-    '''=================QUERY5================'''
+    '''=================QUERY 3.5================'''
 
     def tag_influence_analysis(self, min_count=1000):
         df = self.df
@@ -299,7 +335,7 @@ class QueryManager:
         return tag_scores_desc
 
 
-    '''==========QUERY6============='''
+    '''==========QUERY 3.6============='''
     def recensioni_lunghezza(self):
         from pyspark.sql.functions import length, lit, col, desc, asc, row_number
         from pyspark.sql import Window
@@ -339,7 +375,7 @@ class QueryManager:
         return pos_longest.unionByName(pos_shortest).unionByName(neg_longest).unionByName(neg_shortest)
 
 
-    '''=================QUERY7==============='''
+    '''=================QUERY 3.7==============='''
     # SEASONAL SENTIMENT ANALYSIS
     # TODO
 
@@ -463,6 +499,79 @@ class QueryManager:
             .orderBy("distanza")
         return vicini
 
+
+    '''=================== QUERY 4.5 ====================='''
+    def reputazione_hotel(self, hotel_name):
+        from pyspark.sql.functions import col, max as spark_max, datediff, avg, lit, round
+
+        # Filtra le recensioni dell'hotel
+        df_hotel = self.df.filter(col("Hotel_Name") == hotel_name)
+
+        # Trova la data più recente nel dataset
+        max_date = self.df.agg(spark_max("Review_Date").alias("max_date")).collect()[0]["max_date"]
+
+        # Media storica
+        media_storica_df = df_hotel.agg(avg("Reviewer_Score").alias("media_storica"))
+        # Media ultimi 30 giorni
+        df_recenti = df_hotel.filter(datediff(lit(max_date), col("Review_Date")) <= 30)
+        media_recenti_df = df_recenti.agg(avg("Reviewer_Score").alias("media_ultimi_30gg"))
+
+        # Unisci i risultati in un unico DataFrame
+        result = media_storica_df.crossJoin(media_recenti_df) \
+            .withColumn("Hotel_Name", lit(hotel_name)) \
+            .withColumn("reputazione", col("media_ultimi_30gg") - col("media_storica")) \
+            .select("Hotel_Name", "media_storica", "media_ultimi_30gg", "reputazione")
+
+        return result
+
+
+    '''=================== QUERY 4.6 ====================='''
+    def recensioni_anomale(self, hotel_name):
+
+        # Calcola media e deviazione standard per ogni hotel
+        hotel_stats = self.df.groupBy("Hotel_Name").agg(
+            avg("Reviewer_Score").alias("avg_score"),
+            stddev("Reviewer_Score").alias("stddev_score")
+        )
+
+        # Unisci le statistiche al DataFrame originale
+        df_with_stats = self.df.join(hotel_stats, on="Hotel_Name")
+
+        # Filtra le recensioni anomale per l'hotel richiesto
+        anomalie = df_with_stats.filter(
+            (col("Hotel_Name") == hotel_name) &
+            (abs(col("Reviewer_Score") - col("avg_score")) > (2 * col("stddev_score")))
+        ).select(
+            "Hotel_Name", "Reviewer_Score", "avg_score", "stddev_score", "Positive_Review", "Negative_Review"
+        ).orderBy(asc("Reviewer_Score"))
+
+        return anomalie
+
+
+    '''=================== QUERY 4.7 ====================='''
+    def statistiche_generali_hotel(self, hotel_name):
+
+        stats = self.df.filter(col("Hotel_Name") == hotel_name).agg(
+            count("*").alias("Total_Reviews"),
+            sum(when(col("Reviewer_Score") >= 6, 1).otherwise(0)).alias("Total_Positive_Reviews"),
+            sum(when(col("Reviewer_Score") < 6, 1).otherwise(0)).alias("Total_Negative_Reviews"),
+            max("Reviewer_Score").alias("Max_Reviewer_Score"),
+            min("Reviewer_Score").alias("Min_Reviewer_Score"),
+            avg("Reviewer_Score").alias("Avg_Reviewer_Score"),
+            first("lat").alias("Latitude"),
+            first("lng").alias("Longitude")
+        ).withColumn("Hotel_Name", lit(hotel_name)).select(
+            "Hotel_Name", "Total_Reviews", "Total_Positive_Reviews", "Total_Negative_Reviews",
+            "Max_Reviewer_Score", "Min_Reviewer_Score", "Avg_Reviewer_Score", "Latitude", "Longitude"
+        )
+        return stats
+
+
+    '''=================== QUERY 4.8 ====================='''
+
+    def summary_recensioni_hotel(self, hotel_name):
+        summary_llm = SummaryLLM(self.df)
+        return summary_llm.getSummary(hotel_name)
 
 
 
