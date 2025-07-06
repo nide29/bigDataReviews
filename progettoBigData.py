@@ -6,6 +6,8 @@ from utils import estraiCitta, udf_haversine, is_adjective_or_adverb
 from pyspark.sql.functions import udf, explode, lower, col
 from pyspark.sql.types import ArrayType, StringType
 from Summary import SummaryLLM
+from seasonalSentimentAnalysis import SeasonalSentimentAnalysis
+from seasonalSentimentAnalysisLLM import SeasonalSentimentAnalysisLLM
 
 import os
 os.environ['NLTK_DATA'] = '/Users/alessandro/nltk_data'
@@ -377,9 +379,29 @@ class QueryManager:
 
     '''=================QUERY 3.7==============='''
     # SEASONAL SENTIMENT ANALYSIS
-    # TODO
+    def seasonalSentimentTrend(self):
+        """
+        Mostra il sentiment medio per stagione basato su VADER.
+        """
+        df = self.df
+        seasonal_analyzer = SeasonalSentimentAnalysis(df)
+        return seasonal_analyzer.getAverageSentimentBySeason()
 
-    '''=================QUERY8==============='''
+    def seasonalSentimentTrendForHotel(self, hotel_name):
+        df = self.df
+        analyzer = SeasonalSentimentAnalysis(df)
+        return analyzer.getAverageSentimentBySeasonForHotel(hotel_name)
+
+
+    # Vediamo ora anche una versione che invece di utilizzare VADER utilizza DeepSeek 1.5B per il sentiment
+    # Questa funzione non verrà utilizzata, in quanto è molto più lenta e costosa, inoltre per far si che il risultato
+    # venga prodotto in un termine ragionevole, è necessario limitare fortemente il numero di recensioni per stagione
+    def seasonalStatsForHotelWithLLM(self, hotel_name):
+        analyzer = SeasonalSentimentAnalysisLLM(self.df)
+        return analyzer.getSeasonalStatsForHotel(hotel_name)
+
+
+    '''=================QUERY 3.8==============='''
 
     def preferenze_citta_per_nazionalita_dict(self, top_n=10):
         from pyspark.sql import Window
@@ -574,6 +596,12 @@ class QueryManager:
         return summary_llm.getSummary(hotel_name)
 
 
+    '''=================== QUERY 4.9 ====================='''
+
+    def averageSentimentForHotel_RoBERTa(self, hotel_name: str):
+        from RoBERTa_SentimentAnalyzer import RoBERTa_SentimentAnalyzer
+        analyzer = RoBERTa_SentimentAnalyzer(self.df)
+        return analyzer.getHotelSentiment(hotel_name)
 
 
     '''=================== QUERY DI SUPPORTO ====================='''

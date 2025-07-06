@@ -51,7 +51,11 @@ manager = QueryManager(df)
 #print("🏙️ TEST QUERY 6:")
 #manager.recensioni_lunghezza().show(truncate=False)
 
-#print("🏙️ TEST QUERY 7 - TODO:")
+#print("🏙️ TEST QUERY 7:")
+#manager.seasonalSentimentTrend().show(truncate=False)
+#manager.seasonalSentimentTrendForHotel('Best Western Seraphine Kensington Olympia').show(truncate=False)
+#print('\n🍤VERSIONE CON LLM:')
+#manager.seasonalStatsForHotelWithLLM('Best Western Seraphine Kensington Olympia').show(truncate=False)
 
 #print("🏙️ TEST QUERY 8:")
 #manager.classifica_citta_preferite_df().show()
@@ -78,5 +82,8 @@ manager = QueryManager(df)
 #print("🏙️ TEST QUERY 4.7:")
 #manager.statistiche_generali_hotel('Hotel Arena').show(truncate=False)
 
-print("🏙️ TEST QUERY 4.8:")
-print(manager.summary_recensioni_hotel('Hotel Arena'))
+#print("🏙️ TEST QUERY 4.8:")
+#print(manager.summary_recensioni_hotel('Hotel Arena'))
+
+print("🏙️ TEST QUERY 4.9:")
+manager.averageSentimentForHotel_RoBERTa('Best Western Seraphine Kensington Olympia').show(truncate=False)
