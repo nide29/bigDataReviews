@@ -27,8 +27,8 @@ manager = QueryManager(df)
 
 
 
-#print("🏙️ TEST QUERY 1:")
-#manager.cityHotelInformation().show()
+print("🏙️ TEST QUERY 1:")
+manager.cityHotelInformation().show()
 
 #print("🏙️ TEST QUERY 2:")
 #manager.top_hotel_per_citta('Milan').show()
@@ -51,9 +51,9 @@ manager = QueryManager(df)
 #print("🏙️ TEST QUERY 6:")
 #manager.recensioni_lunghezza().show(truncate=False)
 
-print("🏙️ TEST QUERY 7:")
+#print("🏙️ TEST QUERY 7:")
 #manager.seasonalSentimentTrend().show(truncate=False)
-manager.seasonalSentimentTrendForNation('Italy').show(truncate=False)
+#manager.seasonalSentimentTrendForNation('Italy').show(truncate=False)
 #manager.seasonalSentimentTrendForHotel('Best Western Seraphine Kensington Olympia').show(truncate=False)
 #print('\n🍤VERSIONE CON LLM:')
 #manager.seasonalStatsForHotelWithLLM('Best Western Seraphine Kensington Olympia').show(truncate=False)

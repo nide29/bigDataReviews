@@ -199,14 +199,11 @@ class QueryManager:
         all_info = df.groupby("Hotel_City").agg(
             count("*").alias("Total_Reviews"),
             countDistinct("Hotel_Name").alias("Number_Hotel"),
-            avg("Average_Score").alias("Average_Score"),
-            sum(when((col("Negative_Review").like("No Negative")) | (col("Negative_Review").like("Nothing")),
-                     0).otherwise(1)).alias("TotalN"),
-            sum(when((col("Positive_Review").like("No Positive")) | (col("Positive_Review").like("Nothing")),
-                     0).otherwise(1)).alias("TotalP"),
+            round(avg("Average_Score"), 2).alias("Average_Score"),
+            sum(when(expr('Reviewer_Score < 6'), 1).otherwise(0)).alias("TotalN"),
+            sum(when(expr('Reviewer_Score > 6'), 1).otherwise(0)).alias("TotalP"),
         )
         return all_info
-
 
 
 
@@ -496,8 +493,6 @@ class QueryManager:
     '''=================== QUERY 4.4 ====================='''
 
     def hotel_vicini_a_punto(self, lat, lng, raggio_km=500.0):
-        """Restituisce gli hotel entro raggio_km dal punto (lat, lng)."""
-        # Usa il DataFrame degli hotel unici
         hotel_unici_df = self.hotel_unici()
         # Calcola la distanza Haversine dal punto dato
         df_dist = hotel_unici_df.withColumn(
@@ -505,9 +500,13 @@ class QueryManager:
             udf_haversine(col("lat"), col("lng"), lit(lat), lit(lng))
         )
         # Filtra gli hotel entro il raggio specificato
-        vicini = df_dist.filter(col("distanza") <= raggio_km) \
-            .select("Hotel_Name", "Hotel_City", "lat", "lng", "distanza") \
-            .orderBy("distanza")
+        vicini = df_dist.filter(col("distanza") <= raggio_km)
+        # Calcola la media dei punteggi per ogni hotel
+        avg_scores = self.df.groupBy("Hotel_Name").agg(avg("Reviewer_Score").alias("Avg_Score"))
+        # Join per aggiungere la media
+        vicini = vicini.join(avg_scores, on="Hotel_Name", how="left")
+        # Seleziona e ordina le colonne
+        vicini = vicini.select("Hotel_Name", "Hotel_City", "lat", "lng", "distanza", "Avg_Score").orderBy("distanza")
         return vicini
 
 
