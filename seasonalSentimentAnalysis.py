@@ -78,3 +78,22 @@ class SeasonalSentimentAnalysis:
         ).orderBy("Season")
 
         return result
+
+    def getAverageSentimentBySeasonForNation(self, nation):
+        """
+        Restituisce il sentiment medio per stagione per una specifica nazione dell'hotel.
+        """
+        filtered_df = self.df.filter(col("Hotel_Nationality") == nation)
+        return filtered_df.groupBy("Season") \
+            .agg(avg("Sentiment_Score").alias("Avg_Sentiment_Score")) \
+            .orderBy("Season")
+
+    def getAverageSentimentByNation(self):
+        """
+        Restituisce il sentiment medio annuale per ogni nazione.
+        """
+        df = self.df
+        # Calcola il sentiment medio per ogni nazione sull'intero dataset
+        return df.groupBy("Hotel_Nationality").agg(
+            spark_round(avg("Sentiment_Score"), 3).alias("mean_sentiment")
+        ).withColumnRenamed("Hotel_Nationality", "nation")

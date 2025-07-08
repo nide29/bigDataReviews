@@ -1,0 +1,65 @@
+import streamlit as st
+import sys
+import os
+from progettoBigData import SparkBuilder
+#sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# Configurazione della pagina
+st.set_page_config(
+    page_title="Statistiche",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+st.sidebar.title("🔍 Navigazione")
+st.sidebar.markdown("### Sezioni disponibili:")
+st.sidebar.markdown("- 🏠 **Home**")
+st.sidebar.markdown("- 📊 **Statistiche**")
+st.sidebar.markdown("- 🗺️ **Esplora con mappa**")
+st.sidebar.markdown("- 📍 **Esplora per punto di interesse**")
+st.sidebar.markdown("- #️⃣ **Esplora per tag**")
+st.sidebar.markdown("- 🇮🇹 **Recensione-Nazionalità**")
+st.sidebar.markdown("- 🏖️ **Sentiment Stagionale**")
+
+@st.cache_resource
+def get_query_manager():
+    spark_builder = SparkBuilder()
+    return spark_builder.query_manager
+
+query_manager = get_query_manager()
+
+st.markdown("<h1 style='text-align: center;'>📊 Statistiche sugli Hotel</h1>", unsafe_allow_html=True)
+st.markdown("---")
+
+# 1. Voti medi per nazione
+st.subheader("🌍 Voti Medi per Nazione")
+voti_nazione_df = query_manager.cityHotelInformation()
+st.dataframe(voti_nazione_df.toPandas(), use_container_width=True)
+
+# 2. Top N hotel per ogni città (con selezione città)
+st.subheader("🏨 Top N Hotel per ogni Città")
+# Recupera le 6 città disponibili
+citta_disponibili = [row["Hotel_City"] for row in query_manager.df.select("Hotel_City").distinct().limit(6).collect()]
+citta_disponibili.sort()
+# Menu a tendina per la città
+citta_scelta = st.selectbox("Seleziona una città:", citta_disponibili)
+# Slider per N
+n = st.slider("Quanti hotel vuoi visualizzare per la città selezionata?", min_value=1, max_value=10, value=3)
+# Query e visualizzazione
+if citta_scelta:
+    top_hotel_df = query_manager.top_hotel_per_citta(citta_scelta, n)
+    st.dataframe(top_hotel_df.toPandas(), use_container_width=True)
+
+
+# 3. Preferenze culturali: città preferite per nazionalità
+st.subheader("🌐 Preferenze culturali: città preferite per nazionalità")
+# Recupera le nazionalità disponibili
+nazionalita_disponibili = [row["Reviewer_Nationality"] for row in query_manager.df.select("Reviewer_Nationality").distinct().collect()]
+nazionalita_disponibili.sort()
+# Menu a tendina per la nazionalità
+nazionalita_scelta = st.selectbox("Seleziona una nazionalità:", nazionalita_disponibili, key="nazionalita")
+# Query e visualizzazione (top_n fisso a 6)
+if nazionalita_scelta:
+    preferenze_df = query_manager.preferenze_citta_per_nazionalita_df(nazionalita=nazionalita_scelta, top_n=6)
+    st.dataframe(preferenze_df.toPandas(), use_container_width=True)

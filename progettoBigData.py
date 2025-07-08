@@ -21,6 +21,9 @@ class SparkBuilder:
         self.spark = SparkSession.builder \
             .appName("BigDataProject") \
             .getOrCreate()
+
+        utils_path = os.path.join(os.path.dirname(__file__), "utils.py")
+        self.spark.sparkContext.addPyFile(utils_path)
         print("Sessione Spark <PROGETTO BIG DATA> avviata.")
 
         self.spark.sparkContext.setLogLevel("ERROR")  # per evitare di stampare sempre i Warning
@@ -40,10 +43,8 @@ class SparkBuilder:
         #print("Dataset Schema after pre-process")
         #self.dataset.printSchema()
 
-
-
         # QueryManager associato alla sessione corrente
-        #self.query_manager = QueryManager(self)
+        self.query_manager = QueryManager(self.dataset)
 
 
     def casting(self):
@@ -210,29 +211,31 @@ class QueryManager:
 
 
     '''======================== QUERY 3.2 ========================'''
-    # Il compito di questa Query è quello di restituire i top n Hotel per ogni città
-    def top_hotel_per_citta_per_nazione(self, n=5):
+    def top_hotel_per_citta(self, city: str, n: int = 5):
         df = self.df
 
-        # Media dei voti per ogni hotel, città e nazione
-        hotel_avg = df.groupBy("Hotel_Nationality", "Hotel_City", "Hotel_Name") \
-            .agg(avg("Reviewer_Score").alias("avg_score"))
+        # Filtra solo i record per la città richiesta
+        df_filtered = df.filter(col("Hotel_City") == city)
 
-        # Finestra per ordinare i migliori hotel per città e nazione
+        # Calcola la media dei punteggi per ogni hotel nella città
+        hotel_avg = df_filtered.groupBy("Hotel_Nationality", "Hotel_City", "Hotel_Name") \
+            .agg(round(avg("Reviewer_Score"), 3).alias("avg_score"))
+
+        # Finestra per ordinare gli hotel per punteggio decrescente
         window = Window.partitionBy("Hotel_Nationality", "Hotel_City").orderBy(desc("avg_score"))
 
-        # Ranking e top 5 per città
+        # Ranking e selezione dei top N hotel per nazione nella città specificata
         ranked = hotel_avg.withColumn("rank", row_number().over(window)) \
             .filter(col("rank") <= n)
 
-        # Media dei voti per città e nazione
-        city_avg = df.groupBy("Hotel_Nationality", "Hotel_City") \
+        # Calcola la media dei punteggi per la città/nazione (opzionale, ma utile per confronto)
+        city_avg = df_filtered.groupBy("Hotel_Nationality", "Hotel_City") \
             .agg(avg("Reviewer_Score").alias("city_avg_score"))
 
-        # Unione risultati
+        # Unione dei risultati
         result = ranked.join(city_avg, on=["Hotel_Nationality", "Hotel_City"]) \
             .select("Hotel_Nationality", "Hotel_City", "city_avg_score", "Hotel_Name", "avg_score", "rank") \
-            .orderBy("Hotel_Nationality", "Hotel_City", "rank")
+            .orderBy("Hotel_Nationality", "rank")
 
         return result
 
@@ -253,22 +256,7 @@ class QueryManager:
 
 
     '''=====QUERY 3.3====='''
-    '''
-    # Questa Query permette di effettuare un'analisi degli aggettivi e degli avverbi per capire quali parole sono
-    # indicatori di punteggi alti o bassi
-    def analisi_aggettivi_avverbi(self, min_freq=10):
-        df = self.df.withColumn(
-            "review_text",
-            col("Positive_Review") + " " + col("Negative_Review")   # non mettiamo in lowercase in quanto wordnet è addestrato con la capitalizzazione corretta, quindi con il lower la funzione ha problemi
-        )
-        df = df.withColumn("parole", udf_estrai_aggettivi_avverbi(col("review_text")))
-        df_words = df.select(col("Reviewer_Score"), explode(col("parole")).alias("word"))
-        result = df_words.groupBy("word") \
-            .agg(count("*").alias("freq"), avg("Reviewer_Score").alias("avg_score")) \
-            .filter(col("freq") >= min_freq) \
-            .orderBy(col("avg_score").desc())
-        return result
-    '''
+
 
     def words_score_analysis(self, min_frequency=1000):
         # UDF per filtrare aggettivi e avverbi
@@ -392,6 +380,16 @@ class QueryManager:
         analyzer = SeasonalSentimentAnalysis(df)
         return analyzer.getAverageSentimentBySeasonForHotel(hotel_name)
 
+    def seasonalSentimentTrendForNation(self, nation):
+        df = self.df
+        analyzer = SeasonalSentimentAnalysis(df)
+        return analyzer.getAverageSentimentBySeasonForNation(nation)
+
+    def averageSentimentByNation(self):
+        df = self.df
+        analyzer = SeasonalSentimentAnalysis(df)
+        return analyzer.getAverageSentimentByNation()
+
 
     # Vediamo ora anche una versione che invece di utilizzare VADER utilizza DeepSeek 1.5B per il sentiment
     # Questa funzione non verrà utilizzata, in quanto è molto più lenta e costosa, inoltre per far si che il risultato
@@ -403,7 +401,7 @@ class QueryManager:
 
     '''=================QUERY 3.8==============='''
 
-    def preferenze_citta_per_nazionalita_dict(self, top_n=10):
+    def preferenze_citta_per_nazionalita_df(self, nazionalita=None, top_n=10):
         from pyspark.sql import Window
         from pyspark.sql.functions import avg, desc, row_number, col
 
@@ -411,30 +409,21 @@ class QueryManager:
         df_grouped = self.df.groupBy("Reviewer_Nationality", "Hotel_City") \
             .agg(avg("Reviewer_Score").alias("avg_score"))
 
+        # Se viene passata una nazionalità, filtra
+        if nazionalita:
+            df_grouped = df_grouped.filter(col("Reviewer_Nationality") == nazionalita)
+
         # Finestra per ranking per ogni nazionalità
         window = Window.partitionBy("Reviewer_Nationality").orderBy(desc("avg_score"))
 
-        # Aggiungi ranking e filtra i top N per ogni nazionalità
+        # Ranking e selezione dei top N
         ranked = df_grouped.withColumn("rank", row_number().over(window)) \
-            .filter(col("rank") <= top_n)
+            .filter(col("rank") <= top_n) \
+            .orderBy("Reviewer_Nationality", "rank")
 
-        # Colleziona i risultati in un dizionario Python
-        result = {}
-        for row in ranked.orderBy("Reviewer_Nationality", "rank").collect():
-            naz = row["Reviewer_Nationality"]
-            city = row["Hotel_City"]
-            if naz not in result:
-                result[naz] = []
-            result[naz].append(city)
-        return result
+        return ranked
 
-    def stampa_query8(self):
-        preferenze = self.preferenze_citta_per_nazionalita_dict()
-        for naz, cities in preferenze.items():
-            print(f"\nNazionalità: {naz}\nPreference: {{")
-            for i, city in enumerate(cities, 1):
-                print(f"{i}. {city}")
-            print("}")
+
 
     def classifica_citta_preferite_df(self, top_n=10):
         from pyspark.sql import Window

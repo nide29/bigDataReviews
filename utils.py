@@ -1,6 +1,4 @@
-import nltk
 from nltk.corpus import wordnet
-from nltk import word_tokenize, pos_tag
 import math
 from pyspark.sql.functions import udf
 from pyspark.sql.types import FloatType

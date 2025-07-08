@@ -4,10 +4,18 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="4c153d64-9e5c-4ca2-a7f7-65a70e5fd11f" name="Changes" comment="half query done">
-      <change afterPath="$PROJECT_DIR$/Summary.py" afterDir="false" />
+    <list default="true" id="4c153d64-9e5c-4ca2-a7f7-65a70e5fd11f" name="Changes" comment="added Seasonal Sentimental Analysis and a single hotel RoBERTA Sentiment Analysis">
+      <change afterPath="$PROJECT_DIR$/frontend/Home.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/images/5stelle.jpg" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/pages/AnalisiRecensioni.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/pages/Hotel360.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/pages/SeasonalSentimentAnalysis.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/pages/Statistiche.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/pages/europe_countries.geojson" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/progettoBigData.py" beforeDir="false" afterPath="$PROJECT_DIR$/progettoBigData.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/seasonalSentimentAnalysis.py" beforeDir="false" afterPath="$PROJECT_DIR$/seasonalSentimentAnalysis.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -48,16 +56,23 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Python.main.executor&quot;: &quot;Run&quot;,
-    &quot;Python.progettoBigData.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Python.Home.executor": "Run",
+    "Python.main.executor": "Run",
+    "Python.progettoBigData.executor": "Run",
+    "Python.seasonalSentimentAnalysisLLM.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "git-widget-placeholder": "main",
+    "last_opened_file_path": "/Users/alessandro/PycharmProjects/bigDataReviews/frontend/pages",
+    "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/frontend/pages" />
+      <recent name="$PROJECT_DIR$/frontend/images" />
+    </key>
     <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$" />
     </key>
@@ -110,7 +125,23 @@
       <option name="project" value="LOCAL" />
       <updated>1751641168147</updated>
     </task>
-    <option name="localTasksCounter" value="5" />
+    <task id="LOCAL-00005" summary="added summary">
+      <option name="closed" value="true" />
+      <created>1751735317067</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1751735317067</updated>
+    </task>
+    <task id="LOCAL-00006" summary="added Seasonal Sentimental Analysis and a single hotel RoBERTA Sentiment Analysis">
+      <option name="closed" value="true" />
+      <created>1751763722158</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1751763722158</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -129,6 +160,8 @@
     <MESSAGE value="Updated Preprocessing + utility function" />
     <MESSAGE value="Finished Preprocess" />
     <MESSAGE value="half query done" />
-    <option name="LAST_COMMIT_MESSAGE" value="half query done" />
+    <MESSAGE value="added summary" />
+    <MESSAGE value="added Seasonal Sentimental Analysis and a single hotel RoBERTA Sentiment Analysis" />
+    <option name="LAST_COMMIT_MESSAGE" value="added Seasonal Sentimental Analysis and a single hotel RoBERTA Sentiment Analysis" />
   </component>
 </project>
