@@ -37,12 +37,12 @@ st.markdown("<h1 style='text-align: center;'>📊 Statistiche sugli Hotel</h1>",
 st.markdown("---")
 
 # 1. Voti medi per nazione
-st.subheader("🌍 Voti Medi per Nazione")
+st.subheader("🌍 Voti Medi per Città")
 voti_nazione_df = query_manager.cityHotelInformation().toPandas()
 
 # Seleziona le 6 nazioni principali (puoi modificarle in base ai dati)
 nazioni_disponibili = voti_nazione_df["Hotel_City"].unique()[:6]
-nazione_scelta = st.radio("Seleziona una nazione:", nazioni_disponibili, horizontal=True)
+nazione_scelta = st.radio("Seleziona una città:", nazioni_disponibili, horizontal=True)
 
 # Filtra la tabella per la nazione selezionata
 df_nazione = voti_nazione_df[voti_nazione_df["Hotel_City"] == nazione_scelta]

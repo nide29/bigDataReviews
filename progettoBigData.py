@@ -32,16 +32,16 @@ class SparkBuilder:
         self.dataset = self.spark.read.csv(dataset_path, header=True, inferSchema=True, encoding="UTF-8")
 
         # Stampare lo schema del dataset prima del pre-process
-        #print("Dataset Schema before pre-process")
-        #self.dataset.printSchema()
+        print("Dataset Schema before pre-process")
+        self.dataset.printSchema()
 
         # Pre-Process del Dataset
         self.casting()
         self.preprocess()
 
         # Stampare schema dopo pre-process
-        #print("Dataset Schema after pre-process")
-        #self.dataset.printSchema()
+        print("Dataset Schema after pre-process")
+        self.dataset.printSchema()
 
         # QueryManager associato alla sessione corrente
         self.query_manager = QueryManager(self.dataset)
@@ -73,7 +73,6 @@ class SparkBuilder:
         udf_estraiCitta = udf(estraiCitta, StringType())
         # Aggiungiamo anche una colonna per la città degli Hotel
         df = df.withColumn("Hotel_City", udf_estraiCitta(col("Hotel_Address"), col("Hotel_Nationality")))
-
 
         # Conversione della colonna Tags in un array di stringhe
         df = df.withColumn("Tags", regexp_replace(col("Tags"), "[\[\]']", ""))
@@ -120,10 +119,10 @@ class SparkBuilder:
             .otherwise(col("Reviewer_Nationality"))
         )
 
-        # 4. Drop righe con coordinate mancanti (dopo eventuale geocoding)
+        # 4. Drop righe con coordinate mancanti
         df = df.dropna(subset=["lat", "lng"])
 
-        # 5. Salva nel dataset della classe
+        # 5. Salva nel dataset
         self.dataset = df
 
         print("Preprocessing completato: dati puliti e pronti per l'analisi.")
@@ -187,6 +186,11 @@ class QueryManager:
 
     def info_dataset(self, nRighe):
         return self.df.show(nRighe, truncate=False)
+
+    def informazioni(self):
+        print("Informazioni sul dataset:")
+        dataset = self.df.toPandas()
+        return dataset.info()
 
 
 
@@ -420,25 +424,6 @@ class QueryManager:
 
         return ranked
 
-
-
-    def classifica_citta_preferite_df(self, top_n=10):
-        from pyspark.sql import Window
-        from pyspark.sql.functions import avg, desc, row_number, col
-
-        # Calcola la media dei punteggi per ogni nazionalità e città
-        df_grouped = self.df.groupBy("Reviewer_Nationality", "Hotel_City") \
-            .agg(avg("Reviewer_Score").alias("avg_score"))
-
-        # Finestra per ranking per ogni nazionalità
-        window = Window.partitionBy("Reviewer_Nationality").orderBy(desc("avg_score"))
-
-        # Aggiungi ranking e filtra i top N per ogni nazionalità
-        ranked = df_grouped.withColumn("rank", row_number().over(window)) \
-            .filter(col("rank") <= top_n) \
-            .orderBy("Reviewer_Nationality", "rank")
-
-        return ranked
 
 
 

@@ -7,12 +7,12 @@ df = spark_builder.dataset
 manager = QueryManager(df)
 
 
-#spark_builder.contaNulli()
-
-
+spark_builder.contaNulli()
+#print(manager.informazioni())
 # UTILE PER RELAZIONE
 #print("RECAP")
-#spark_builder.stampa_schema_e_conteggi()
+spark_builder.stampa_schema_e_conteggi()
+
 
 '''QUERY TEST'''
 #print("🧾 Media punteggio per hotel:")
@@ -27,8 +27,8 @@ manager = QueryManager(df)
 
 
 
-print("🏙️ TEST QUERY 1:")
-manager.cityHotelInformation().show()
+#print("🏙️ TEST QUERY 1:")
+#manager.cityHotelInformation().show()
 
 #print("🏙️ TEST QUERY 2:")
 #manager.top_hotel_per_citta('Milan').show()

@@ -12,15 +12,50 @@ def get_query_manager():
     spark_builder = SparkBuilder()
     return spark_builder.query_manager
 
-
 query_manager = get_query_manager()
 
 st.title("🏨 Hotel360: Analisi completa degli hotel")
 
-# Carica hotel unici
-df_hotels = query_manager.hotel_unici().toPandas()
+@st.cache_data
+def get_df_hotels(_query_manager):
+    return _query_manager.hotel_unici().toPandas()
 
-# Coordinate città (puoi aggiornarle in base ai tuoi dati)
+@st.cache_data
+def get_df_avg(_query_manager, hotel_selected):
+    return _query_manager.punteggio_medio_storico_hotel(hotel_selected).toPandas()
+
+@st.cache_data
+def get_df_trend(_query_manager, hotel_selected):
+    return _query_manager.trend_mensile_hotel(hotel_selected).toPandas()
+
+@st.cache_data
+def get_df_stats(_query_manager, hotel_selected):
+    return _query_manager.statistiche_generali_hotel(hotel_selected).toPandas()
+
+@st.cache_data
+def get_df_vicini(_query_manager, hotel_selected, raggio_km):
+    df = _query_manager.hotel_vicini(hotel_selected, raggio_km)
+    return df.toPandas() if df is not None else None
+
+@st.cache_data
+def get_df_rep(_query_manager, hotel_selected):
+    return _query_manager.reputazione_hotel(hotel_selected).toPandas()
+
+@st.cache_data
+def get_df_anomale(_query_manager, hotel_selected):
+    return _query_manager.recensioni_anomale(hotel_selected).toPandas()
+
+@st.cache_data
+def get_df_sentiment(_query_manager, hotel_selected):
+    return _query_manager.averageSentimentForHotel_RoBERTa(hotel_selected).toPandas()
+
+@st.cache_data
+def get_summary(_query_manager, hotel_selected):
+    return _query_manager.summary_recensioni_hotel(hotel_selected)
+
+# Carica hotel unici
+df_hotels = get_df_hotels(query_manager)
+
 city_coords = {
     "Milano": [45.4642, 9.1900],
     "Vienna": [48.2082, 16.3738],
@@ -38,7 +73,6 @@ hotels_in_city = hotels_in_city.dropna(subset=["lat", "lng"])
 hotels_in_city["lat"] = hotels_in_city["lat"].astype(float)
 hotels_in_city["lng"] = hotels_in_city["lng"].astype(float)
 
-# Crea la mappa con marker cliccabili
 mappa = folium.Map(location=city_coords[city_selected], zoom_start=12)
 for _, row in hotels_in_city.iterrows():
     folium.Marker(
@@ -48,34 +82,39 @@ for _, row in hotels_in_city.iterrows():
         icon=folium.Icon(color='blue', icon='info-sign')
     ).add_to(mappa)
 
-map_data = st_folium(mappa, width=1000, height=550)
+with st.container():
+    map_data = st_folium(mappa, width=1000, height=550)
+    hotel_selected = None
+    if map_data and map_data.get('last_object_clicked_tooltip') is not None:
+        hotel_selected = map_data.get('last_object_clicked_tooltip')
 
-# Selezione hotel tramite click
-hotel_selected = None
-if map_data and map_data.get('last_object_clicked_tooltip') is not None:
-    hotel_selected = map_data.get('last_object_clicked_tooltip')
+
+#map_data = st_folium(mappa, width=1000, height=550)
+
+
+#hotel_selected = None
+#if map_data and map_data.get('last_object_clicked_tooltip') is not None:
+#    hotel_selected = map_data.get('last_object_clicked_tooltip')
 
 if hotel_selected:
-    #st.markdown("---")
     st.header(f"Analisi per: {hotel_selected}")
 
-    # 1. Punteggio medio storico
     st.subheader("Punteggio medio storico")
-    df_avg = query_manager.punteggio_medio_storico_hotel(hotel_selected).toPandas()
+    df_avg = get_df_avg(query_manager, hotel_selected)
     if not df_avg.empty and "avg_score" in df_avg.columns:
         score = df_avg["avg_score"].iloc[0]
         if score >= 8.5:
             msg = "🏆 L'hotel ha un punteggio <b>molto alto</b>!"
-            bgcolor = "#2ecc40"  # verde
+            bgcolor = "#2ecc40"
         elif score >= 7:
             msg = "😊 L'hotel ha un punteggio <b>alto</b>."
-            bgcolor = "#a3e635"  # lime
+            bgcolor = "#a3e635"
         elif score >= 5.5:
             msg = "😐 L'hotel ha un punteggio <b>medio</b>."
-            bgcolor = "#facc15"  # giallo
+            bgcolor = "#facc15"
         else:
             msg = "⚠️ L'hotel ha un punteggio <b>basso</b>."
-            bgcolor = "#ef4444"  # rosso
+            bgcolor = "#ef4444"
 
         st.markdown(
             f"""
@@ -99,11 +138,8 @@ if hotel_selected:
     else:
         st.info("Nessun dato disponibile per il punteggio medio.")
 
-    # 2. Trend mensile
     st.subheader("Trend mensile")
-    df_trend = query_manager.trend_mensile_hotel(hotel_selected).toPandas()
-
-    # Assicurati che le colonne siano presenti e ordinate
+    df_trend = get_df_trend(query_manager, hotel_selected)
     if not df_trend.empty and {"anno", "mese", "media_mensile"}.issubset(df_trend.columns):
         df_trend = df_trend.sort_values(["anno", "mese"])
         df_trend["periodo"] = df_trend["anno"].astype(str) + "-" + df_trend["mese"].astype(str).str.zfill(2)
@@ -111,9 +147,8 @@ if hotel_selected:
     else:
         st.info("Nessun dato disponibile per il trend mensile.")
 
-    # 3. Statistiche generali
     st.subheader("Statistiche generali")
-    df_stats = query_manager.statistiche_generali_hotel(hotel_selected).toPandas()
+    df_stats = get_df_stats(query_manager, hotel_selected)
     if not df_stats.empty:
         stats = df_stats.iloc[0]
         col1, col2, col3 = st.columns(3)
@@ -127,7 +162,6 @@ if hotel_selected:
             st.metric("Punteggio minimo", f"{stats['Min_Reviewer_Score']:.1f}")
             st.metric("Punteggio massimo", f"{stats['Max_Reviewer_Score']:.1f}")
 
-        # Diagramma a torta
         pie_data = {
             "Tipo": ["Positive", "Negative"],
             "Numero": [stats["Total_Positive_Reviews"], stats["Total_Negative_Reviews"]]
@@ -139,17 +173,15 @@ if hotel_selected:
     else:
         st.info("Nessuna statistica disponibile.")
 
-    # 4. Hotel vicini
     st.subheader("Consigli: hotel vicini")
-    df_vicini = query_manager.hotel_vicini(hotel_selected, raggio_km=1.0)
+    df_vicini = get_df_vicini(query_manager, hotel_selected, raggio_km=1.0)
     if df_vicini is not None:
-        st.table(df_vicini.toPandas())
+        st.table(df_vicini)
     else:
         st.info("Nessun hotel vicino trovato.")
 
-    # 5. Reputazione hotel
     st.subheader("Reputazione dell’hotel")
-    df_rep = query_manager.reputazione_hotel(hotel_selected).toPandas()
+    df_rep = get_df_rep(query_manager, hotel_selected)
     if not df_rep.empty:
         rep = df_rep.iloc[0]
         col1, col2, col3 = st.columns(3)
@@ -160,13 +192,12 @@ if hotel_selected:
         with col3:
             st.metric("Reputazione (Δ)", f"{rep['reputazione']:+.2f}")
 
-        # Box colorato con messaggio
         if rep['reputazione'] > 0:
             msg = "📈 La reputazione dell'hotel sta <b>migliorando</b>!"
-            bgcolor = "#2ecc40"  # verde
+            bgcolor = "#2ecc40"
         else:
             msg = "📉 La reputazione dell'hotel sta <b>peggiorando</b>."
-            bgcolor = "#ef4444"  # rosso
+            bgcolor = "#ef4444"
 
         st.markdown(
             f"""
@@ -188,23 +219,18 @@ if hotel_selected:
     else:
         st.info("Nessun dato disponibile sulla reputazione.")
 
-    # 6. Recensioni anomale
     st.subheader("Recensioni anomale")
-    df_anomale = query_manager.recensioni_anomale(hotel_selected).toPandas()
+    df_anomale = get_df_anomale(query_manager, hotel_selected)
     if not df_anomale.empty:
         st.dataframe(df_anomale)
     else:
         st.info("Nessuna recensione anomala trovata.")
 
-
-    # 7. Analisi sentiment RoBERTa
     st.subheader("Analisi del sentiment (RoBERTa)")
-    df_sentiment = query_manager.averageSentimentForHotel_RoBERTa(hotel_selected).toPandas()
-
+    df_sentiment = get_df_sentiment(query_manager, hotel_selected)
     if not df_sentiment.empty and "Average_Sentiment_Score" in df_sentiment.columns and pd.notnull(
             df_sentiment["Average_Sentiment_Score"].iloc[0]):
         score = df_sentiment["Average_Sentiment_Score"].iloc[0]
-        # Se la tabella contiene anche altri dati, ad esempio conteggi o percentuali:
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Sentiment medio", f"{score:.2f}")
@@ -215,7 +241,6 @@ if hotel_selected:
             with col3:
                 st.metric("Recensioni negative", int(df_sentiment["Negative_Count"].iloc[0]))
 
-        # Box colorato con messaggio riassuntivo
         if score > 0.2:
             msg = "😊 Il sentiment generale è <b>positivo</b>!"
             bgcolor = "#2ecc40"
@@ -248,13 +273,8 @@ if hotel_selected:
     else:
         st.info("Nessun dato disponibile sull'analisi del sentiment.")
 
-    # Se vuoi mostrare anche la tabella dettagliata:
-    # st.dataframe(df_sentiment)
-
-
-    # 8. Summary recensioni
     st.subheader("Riassunto delle recensioni")
-    summary = query_manager.summary_recensioni_hotel(hotel_selected)
+    summary = get_summary(query_manager, hotel_selected)
     st.write(summary)
 else:
     st.info("Clicca su un hotel nella mappa per visualizzare l’analisi.")
